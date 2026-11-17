@@ -1,6 +1,6 @@
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 import { open } from "@tauri-apps/plugin-dialog";
-import { CheckCheck, ClipboardPaste, FileText, Keyboard, Link2, Monitor, Moon, MoreHorizontal, PanelLeft, Pause, Play, Settings, Sparkles, Sun, X } from "lucide-react";
+import { CheckCheck, ClipboardPaste, FileText, Keyboard, Link2, MoreHorizontal, PanelLeft, Pause, Play, Settings, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api";
 import { useSettings } from "../../store/settings";
@@ -103,8 +103,6 @@ async function clearCompleted() {
 
 export function Toolbar() {
   const { settings, set } = useSettings();
-  const themeIcon =
-    settings.theme === "light" ? <Sun className="h-4 w-4" /> : settings.theme === "dark" ? <Moon className="h-4 w-4" /> : settings.theme === "glass" ? <Sparkles className="h-4 w-4" /> : <Monitor className="h-4 w-4" />;
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-1 border-b border-line bg-panel/80 px-2 backdrop-blur" {...windowDragProps}>
@@ -121,15 +119,6 @@ export function Toolbar() {
         <Pause className="h-4 w-4" />
       </IconButton>
       <div className="mx-1 h-5 w-px bg-line" />
-      <DropdownMenu
-        trigger={<IconButton label="Theme">{themeIcon}</IconButton>}
-        entries={[
-          { label: "Dark", icon: <Moon className="h-3.5 w-3.5" />, checked: settings.theme === "dark", onSelect: () => set("theme", "dark") },
-          { label: "Light", icon: <Sun className="h-3.5 w-3.5" />, checked: settings.theme === "light", onSelect: () => set("theme", "light") },
-          { label: "Glass", icon: <Sparkles className="h-3.5 w-3.5" />, checked: settings.theme === "glass", onSelect: () => set("theme", "glass") },
-          { label: "System", icon: <Monitor className="h-3.5 w-3.5" />, checked: settings.theme === "system", onSelect: () => set("theme", "system") },
-        ]}
-      />
       <DropdownMenu
         trigger={
           <IconButton label="More">

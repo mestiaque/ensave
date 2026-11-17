@@ -224,38 +224,51 @@ impl Db {
     /// Apply a state-machine action to each task; tasks for which the action is not valid
     /// are left untouched. Returns the tasks that changed.
     pub fn apply_action(&self, ids: &[i64], action: Action) -> Result<Vec<Task>> {
-        let mut changed = Vec::new();
-        {
+        let changed = {
             let mut c = self.conn.lock();
             let tx = c.transaction()?;
-            for id in ids {
-                let Some(status) = tx.query_row("SELECT status FROM tasks WHERE id = ?1", [id], |r| r.get::<_, String>(0)).optional()? else { continue };
-                let Some(from) = TaskStatus::parse(&status) else { continue };
-                let Ok(to) = transition(from, action) else { continue };
-                if to == from {
-                    continue;
-                }
-                let finished = if to.is_finished() { Some(now_ms()) } else { None };
-                tx.execute("UPDATE tasks SET status = ?1, speed = 0, finished_at = ?2 WHERE id = ?3", params![to.as_str(), finished, id])?;
-                if matches!(action, Action::Retry | Action::Resume) {
-                    tx.execute("UPDATE tasks SET error = NULL, error_kind = NULL WHERE id = ?1", [id])?;
-                }
-                if action == Action::Retry && from == TaskStatus::Completed {
-                    tx.execute("UPDATE tasks SET done = 0, engine_ref = NULL WHERE id = ?1", [id])?;
-                }
-                changed.push(*id);
-            }
+            let changed = Self::transition_in(&tx, ids, action)?;
             tx.commit()?;
-        }
+            changed
+        };
         self.tasks_by_ids(&changed)
     }
 
-    pub fn set_failed(&self, id: i64, err: &DlError) -> Result<Option<Task>> {
-        let changed = self.apply_action(&[id], Action::Fail)?;
-        if changed.is_empty() {
-            return Ok(None);
+    /// The status changes of `apply_action`, inside the caller's transaction.
+    fn transition_in(tx: &rusqlite::Transaction, ids: &[i64], action: Action) -> Result<Vec<i64>> {
+        let mut changed = Vec::new();
+        for id in ids {
+            let Some(status) = tx.query_row("SELECT status FROM tasks WHERE id = ?1", [id], |r| r.get::<_, String>(0)).optional()? else { continue };
+            let Some(from) = TaskStatus::parse(&status) else { continue };
+            let Ok(to) = transition(from, action) else { continue };
+            if to == from {
+                continue;
+            }
+            let finished = if to.is_finished() { Some(now_ms()) } else { None };
+            tx.execute("UPDATE tasks SET status = ?1, speed = 0, finished_at = ?2 WHERE id = ?3", params![to.as_str(), finished, id])?;
+            if matches!(action, Action::Retry | Action::Resume) {
+                tx.execute("UPDATE tasks SET error = NULL, error_kind = NULL WHERE id = ?1", [id])?;
+            }
+            if action == Action::Retry && from == TaskStatus::Completed {
+                tx.execute("UPDATE tasks SET done = 0, engine_ref = NULL WHERE id = ?1", [id])?;
+            }
+            changed.push(*id);
         }
-        self.conn.lock().execute("UPDATE tasks SET error = ?1, error_kind = ?2 WHERE id = ?3", params![err.to_string(), err.kind(), id])?;
+        Ok(changed)
+    }
+
+    /// Marks a task failed together with its error in one transaction, so nobody (the UI, a
+    /// test) can see a failed task whose error has not been written yet.
+    pub fn set_failed(&self, id: i64, err: &DlError) -> Result<Option<Task>> {
+        {
+            let mut c = self.conn.lock();
+            let tx = c.transaction()?;
+            if Self::transition_in(&tx, &[id], Action::Fail)?.is_empty() {
+                return Ok(None);
+            }
+            tx.execute("UPDATE tasks SET error = ?1, error_kind = ?2 WHERE id = ?3", params![err.to_string(), err.kind(), id])?;
+            tx.commit()?;
+        }
         self.get_task(id)
     }
 

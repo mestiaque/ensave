@@ -121,8 +121,7 @@ Open Settings with `Ctrl+,` or the gear button.
   your browser.
 * **Tools**: the helper programs ENSave uses. You normally don't need to change
   anything here.
-* **Appearance**: the theme (Dark, Light, Glass, System) and the accent colour. The
-  theme button in the toolbar switches it quickly.
+* **Appearance**: the theme (Dark, Light, Glass, System) and the accent colour.
 * **Logs**: what ENSave has been doing, useful when you report a problem.
 
 ![Download settings](screenshots/05-settings-downloads.png)
